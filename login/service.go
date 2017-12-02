@@ -65,7 +65,8 @@ type KeycloakOAuthProvider struct {
 type KeycloakOAuthService interface {
 	Perform(ctx *app.LoginLoginContext, config oauth.OauthConfig, serviceConfig LoginServiceConfiguration) error
 	PerformAuthorize(ctx *app.AuthorizeAuthorizeContext, config oauth.OauthConfig, serviceConfig LoginServiceConfiguration) error
-	PerformExchange(ctx *app.ExchangeTokenContext, config oauth.OauthConfig, serviceConfig LoginServiceConfiguration) error
+	PerformAuthorizeCallback(ctx *app.AuthorizecallbackAuthorizecallbackContext) error
+	PerformExchange(ctx *app.AuthorizeAuthorizeContext, config oauth.OauthConfig, serviceConfig LoginServiceConfiguration) error
 	CreateOrUpdateIdentity(ctx context.Context, accessToken string, configuration LoginServiceConfiguration) (*account.Identity, bool, error)
 	Link(ctx *app.LinkLinkContext, brokerEndpoint string, clientID string, validRedirectURL string) error
 	LinkSession(ctx *app.SessionLinkContext, brokerEndpoint string, clientID string, validRedirectURL string) error
@@ -345,45 +346,6 @@ func (keycloak *KeycloakOAuthProvider) PerformAuthorize(ctx *app.AuthorizeAuthor
 
 	validRedirectURL := serviceConfig.GetValidRedirectURLs()
 
-	state := ctx.Params.Get("state")
-	code := ctx.Params.Get("code")
-
-	log.Debug(ctx, map[string]interface{}{
-		"code":  code,
-		"state": state,
-	}, "login request received")
-
-	if code != "" {
-		// After redirect from oauth provider
-		log.Debug(ctx, map[string]interface{}{
-			"code":  code,
-			"state": state,
-		}, "Redirected from oauth provider")
-
-		// validate known state
-		knownReferrer, err := keycloak.getReferrer(ctx, state)
-		if err != nil {
-			log.Error(ctx, map[string]interface{}{
-				"state": state,
-				"err":   err,
-			}, "unknown state")
-			jerrors, _ := jsonapi.ErrorToJSONAPIErrors(ctx, goa.ErrUnauthorized("unknown state. "+err.Error()))
-			return ctx.Unauthorized(jerrors)
-		}
-
-		log.Debug(ctx, map[string]interface{}{
-			"code":           code,
-			"state":          state,
-			"known_referrer": knownReferrer,
-		}, "referrer found")
-
-		authCode := &app.AuthorizationCode{
-			Code:  *ctx.Code,
-			State: *ctx.State,
-		}
-		return ctx.OK(authCode)
-	}
-
 	// First time access, redirect to oauth provider
 
 	redirect := ctx.RedirectURI
@@ -427,8 +389,58 @@ func (keycloak *KeycloakOAuthProvider) PerformAuthorize(ctx *app.AuthorizeAuthor
 	return ctx.TemporaryRedirect()
 }
 
+// PerformAuthorizeCallback takes care of authorize action
+func (keycloak *KeycloakOAuthProvider) PerformAuthorizeCallback(ctx *app.AuthorizecallbackAuthorizecallbackContext) error {
+
+	code := ctx.Code
+	state := ctx.State
+	// After redirect from oauth provider
+	log.Debug(ctx, map[string]interface{}{
+		"code":  code,
+		"state": state,
+	}, "Redirected from oauth provider")
+
+	// validate known state
+	knownReferrer, err := keycloak.getReferrer(ctx, *state)
+	if err != nil {
+		log.Error(ctx, map[string]interface{}{
+			"state": state,
+			"err":   err,
+		}, "unknown state")
+		jerrors, _ := jsonapi.ErrorToJSONAPIErrors(ctx, goa.ErrUnauthorized("unknown state. "+err.Error()))
+		return ctx.Unauthorized(jerrors)
+	}
+
+	log.Debug(ctx, map[string]interface{}{
+		"code":           code,
+		"state":          state,
+		"known_referrer": knownReferrer,
+	}, "referrer found")
+
+	referrerURL, err := url.Parse(knownReferrer)
+	if err != nil {
+		log.Error(ctx, map[string]interface{}{
+			"code":           code,
+			"state":          state,
+			"known_referrer": knownReferrer,
+			"err":            err,
+		}, "failed to parse referrer")
+		ctx.ResponseData.Header().Set("Location", knownReferrer+"?error="+"failed to parse referrer")
+		return ctx.TemporaryRedirect()
+	}
+
+	redirectURL := fmt.Sprintf("%s?code=%s&state=%s", referrerURL, *code, *state)
+	ctx.ResponseData.Header().Set("Location", redirectURL)
+	log.Info(ctx, map[string]interface{}{
+		"known_referrer": knownReferrer,
+		"code":           code,
+		"state":          state,
+	}, "all good; redirecting back to referrer")
+	return ctx.TemporaryRedirect()
+}
+
 // PerformExchange performs exchange from code to token
-func (keycloak *KeycloakOAuthProvider) PerformExchange(ctx *app.ExchangeTokenContext, config oauth.OauthConfig, serviceConfig LoginServiceConfiguration) error {
+func (keycloak *KeycloakOAuthProvider) PerformExchange(ctx *app.AuthorizeAuthorizeContext, config oauth.OauthConfig, serviceConfig LoginServiceConfiguration) error {
 	/* Compute all the configuration urls */
 
 	witURL, err := serviceConfig.GetWITURL(ctx.RequestData)
