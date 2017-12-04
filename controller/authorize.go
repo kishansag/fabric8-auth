@@ -31,44 +31,6 @@ func NewAuthorizeController(service *goa.Service, auth *login.KeycloakOAuthProvi
 // Authorize runs the authorize action.
 func (c *AuthorizeController) Authorize(ctx *app.AuthorizeAuthorizeContext) error {
 
-	if ctx.GrantType != nil {
-		if *ctx.GrantType != "authorization_code" {
-			return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("grant_type", "nil").Expected("GrantType==authorization_code"))
-		}
-		if ctx.RedirectURI == nil {
-			return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("redirect_uri", "nil").Expected("Redirect URI"))
-		}
-		if ctx.Code == nil {
-			return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("code", "nil").Expected("Authorization Code"))
-		}
-
-		authEndpoint, err := c.Configuration.GetKeycloakEndpointAuth(ctx.RequestData)
-		if err != nil {
-			log.Error(ctx, map[string]interface{}{
-				"err": err,
-			}, "Unable to get Keycloak Auth endpoint URL")
-			return jsonapi.JSONErrorResponse(ctx, errors.NewInternalError(ctx, errs.Wrap(err, "unable to get Keycloak Auth endpoint URL")))
-		}
-
-		tokenEndpoint, err := c.Configuration.GetKeycloakEndpointToken(ctx.RequestData)
-		if err != nil {
-			log.Error(ctx, map[string]interface{}{
-				"err": err,
-			}, "Unable to get Keycloak token endpoint URL")
-			return jsonapi.JSONErrorResponse(ctx, errors.NewInternalError(ctx, errs.Wrap(err, "unable to get Keycloak token endpoint URL")))
-		}
-
-		oauth := &oauth2.Config{
-			ClientID:     c.Configuration.GetKeycloakClientID(),
-			ClientSecret: c.Configuration.GetKeycloakSecret(),
-			Scopes:       []string{"user:email"},
-			Endpoint:     oauth2.Endpoint{AuthURL: authEndpoint, TokenURL: tokenEndpoint},
-			RedirectURL:  rest.AbsoluteURL(ctx.RequestData, "/api/authorize"),
-		}
-
-		return c.Auth.PerformExchange(ctx, oauth, c.Configuration)
-	}
-
 	if ctx.State == nil {
 		return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("state", "nil").Expected("State"))
 	}
@@ -120,9 +82,51 @@ func (c *AuthorizeController) Authorize(ctx *app.AuthorizeAuthorizeContext) erro
 		ClientSecret: c.Configuration.GetKeycloakSecret(),
 		Scopes:       []string{"user:email"},
 		Endpoint:     oauth2.Endpoint{AuthURL: authEndpoint, TokenURL: tokenEndpoint},
-		RedirectURL:  rest.AbsoluteURL(ctx.RequestData, "/api/authorize/callback"),
+		RedirectURL:  rest.AbsoluteURL(ctx.RequestData, "/api/authorize"),
 	}
 
 	ctx.ResponseData.Header().Set("Cache-Control", "no-cache")
 	return c.Auth.PerformAuthorize(ctx, oauth, c.Configuration)
+}
+
+// Gettoken runs the authorize action.
+func (c *AuthorizeController) Gettoken(ctx *app.GettokenAuthorizeContext) error {
+
+	payload := ctx.Payload
+	if payload.GrantType != "authorization_code" {
+		return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("grant_type", "nil").Expected("GrantType==authorization_code"))
+	}
+	if payload.RedirectURI == nil {
+		return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("redirect_uri", "nil").Expected("Redirect URI"))
+	}
+	if payload.Code == nil {
+		return jsonapi.JSONErrorResponse(ctx, errors.NewBadParameterError("code", "nil").Expected("Authorization Code"))
+	}
+
+	authEndpoint, err := c.Configuration.GetKeycloakEndpointAuth(ctx.RequestData)
+	if err != nil {
+		log.Error(ctx, map[string]interface{}{
+			"err": err,
+		}, "Unable to get Keycloak Auth endpoint URL")
+		return jsonapi.JSONErrorResponse(ctx, errors.NewInternalError(ctx, errs.Wrap(err, "unable to get Keycloak Auth endpoint URL")))
+	}
+
+	tokenEndpoint, err := c.Configuration.GetKeycloakEndpointToken(ctx.RequestData)
+	if err != nil {
+		log.Error(ctx, map[string]interface{}{
+			"err": err,
+		}, "Unable to get Keycloak token endpoint URL")
+		return jsonapi.JSONErrorResponse(ctx, errors.NewInternalError(ctx, errs.Wrap(err, "unable to get Keycloak token endpoint URL")))
+	}
+
+	oauth := &oauth2.Config{
+		ClientID:     c.Configuration.GetKeycloakClientID(),
+		ClientSecret: c.Configuration.GetKeycloakSecret(),
+		Scopes:       []string{"user:email"},
+		Endpoint:     oauth2.Endpoint{AuthURL: authEndpoint, TokenURL: tokenEndpoint},
+		RedirectURL:  rest.AbsoluteURL(ctx.RequestData, "/api/authorize"),
+	}
+
+	return c.Auth.PerformExchange(ctx, oauth, c.Configuration)
+
 }

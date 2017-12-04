@@ -167,10 +167,6 @@ func main() {
 	authorizeCtrl := controller.NewAuthorizeController(service, loginService, tokenManager, config)
 	app.MountAuthorizeController(service, authorizeCtrl)
 
-	// Mount "authorizecallback" controller
-	authorizeCallbackCtrl := controller.NewAuthorizecallbackController(service, loginService, tokenManager, config)
-	app.MountAuthorizecallbackController(service, authorizeCallbackCtrl)
-
 	// Mount "logout" controller
 	logoutCtrl := controller.NewLogoutController(service, &login.KeycloakLogoutService{}, config)
 	app.MountLogoutController(service, logoutCtrl)
