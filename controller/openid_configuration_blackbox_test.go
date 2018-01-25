@@ -38,12 +38,14 @@ func (s *TestOpenIDConfigurationREST) TestShowOpenIDConfiguration() {
 	tokenEndpoint := "http:///api/token"
 	logoutEndpoint := "http:///api/logout"
 	jwksURI := "http:///api/token/keys"
+	userInfoEndpoint := "https://sso.prod-preview.openshift.io/auth/realms/fabric8-test/protocol/openid-connect/userinfo"
 
 	expectedOpenIDConfiguration := &app.OpenIDConfiguration{
 		Issuer:                            &issuer,
 		AuthorizationEndpoint:             &authorizationEndpoint,
 		TokenEndpoint:                     &tokenEndpoint,
 		EndSessionEndpoint:                &logoutEndpoint,
+		UserinfoEndpoint:                  &userInfoEndpoint,
 		ResponseTypesSupported:            []string{"code"},
 		JwksURI:                           &jwksURI,
 		GrantTypesSupported:               []string{"authorization_code", "refresh_token", "client_credentials"},

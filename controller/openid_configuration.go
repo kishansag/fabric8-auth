@@ -25,13 +25,14 @@ func (c *OpenidConfigurationController) Show(ctx *app.ShowOpenidConfigurationCon
 	tokenEndpoint := rest.AbsoluteURL(ctx.RequestData, client.ExchangeTokenPath())
 	logoutEndpoint := rest.AbsoluteURL(ctx.RequestData, client.LogoutLogoutPath())
 	jwksURI := rest.AbsoluteURL(ctx.RequestData, client.KeysTokenPath())
-
+	userinfoEndpoint := "https://sso.prod-preview.openshift.io/auth/realms/fabric8-test/protocol/openid-connect/userinfo"
 	authOpenIDConfiguration := &app.OpenIDConfiguration{
 		// REQUIRED properties
 		Issuer:                 &issuer,
 		AuthorizationEndpoint:  &authorizationEndpoint,
 		TokenEndpoint:          &tokenEndpoint,
 		EndSessionEndpoint:     &logoutEndpoint,
+		UserinfoEndpoint:       &userinfoEndpoint,
 		ResponseTypesSupported: []string{"code"},
 		JwksURI:                &jwksURI,
 
